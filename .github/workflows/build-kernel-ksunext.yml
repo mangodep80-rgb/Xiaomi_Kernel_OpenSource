@@ -1,0 +1,104 @@
+name: Build Kernel Kunzite + KernelSU
+
+on:
+  workflow_dispatch:
+    inputs:
+      defconfig:
+        description: 'Nama defconfig (kosongkan untuk deteksi otomatis)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: Compile Kernel with KernelSU-Next
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Bersihkan Ruang Penyimpanan Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android
+          sudo apt-get clean
+          df -h
+
+      - name: Checkout Source Kernel
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Dependensi Build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex git \
+            libelf-dev libssl-dev lld llvm python3 python3-pip unzip wget zip zstd
+
+      - name: Download Toolchain Clang (Neutron Latest)
+        run: |
+          mkdir -p clang
+          cd clang
+          bash <(curl -s "https://githubusercontent.com") -S
+          bash <(curl -s "https://githubusercontent.com") --patch=glibc
+
+      - name: Integrasi KernelSU-Next
+        run: |
+          curl -LSs "https://githubusercontent.com" | bash -s next
+
+      - name: Cek & Konfigurasi Defconfig
+        id: check_config
+        run: |
+          if [ -n "${{ github.event.inputs.defconfig }}" ]; then
+            SELECTED="${{ github.event.inputs.defconfig }}"
+          elif [ -f "arch/arm64/configs/kunzite_defconfig" ]; then
+            SELECTED="kunzite_defconfig"
+          elif [ -f "arch/arm64/configs/vendor/kunzite_defconfig" ]; then
+            SELECTED="vendor/kunzite_defconfig"
+          elif [ -f "arch/arm64/configs/gki_defconfig" ]; then
+            SELECTED="gki_defconfig"
+          else
+            SELECTED="defconfig"
+          fi
+          echo "DEFCONFIG=$SELECTED" >> $GITHUB_ENV
+          echo "Menggunakan defconfig: $SELECTED"
+
+          # Pastikan opsi kernel yang dibutuhkan KernelSU aktif
+          scripts/config --file arch/arm64/configs/$SELECTED \
+            -e CONFIG_KSU \
+            -e CONFIG_KPROBES \
+            -e CONFIG_HAVE_KPROBES \
+            -e CONFIG_KPROBE_EVENTS \
+            -e CONFIG_OVERLAY_FS
+
+      - name: Mulai Kompilasi Kernel
+        run: |
+          export PATH="$PWD/clang/bin:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export KBUILD_BUILD_USER="Builder"
+          export KBUILD_BUILD_HOST="GitHub-Actions"
+
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
+          make -j$(nproc --all) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+      - name: Kemas dengan AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com AnyKernel3
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
+          sed -i 's!block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!block=/dev/block/bootdevice/by-name/boot;!g' AnyKernel3/anykernel.sh
+          cp out/arch/arm64/boot/Image AnyKernel3/ || cp out/arch/arm64/boot/Image.gz AnyKernel3/
+          cd AnyKernel3
+          zip -r9 ../KernelSU-Kunzite-Flashable.zip * -x .git README.md *placeholder
+          cd ..
+          mkdir -p release
+          mv KernelSU-Kunzite-Flashable.zip release/
+
+      - name: Upload Hasil Build ke Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KernelSU-Kunzite-${{ github.run_number }}
+          path: release/
+          retention-days: 7
