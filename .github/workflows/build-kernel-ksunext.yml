@@ -64,7 +64,8 @@ jobs:
             -e CONFIG_KPROBES \
             -e CONFIG_HAVE_KPROBES \
             -e CONFIG_KPROBE_EVENTS \
-            -e CONFIG_OVERLAY_FS
+            -e CONFIG_OVERLAY_FS \
+            -d CONFIG_WERROR
 
       - name: Mulai Kompilasi Kernel
         run: |
@@ -80,6 +81,7 @@ jobs:
             CC=clang \
             LLVM=1 \
             LLVM_IAS=1 \
+            KCFLAGS="-Wno-error" \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
