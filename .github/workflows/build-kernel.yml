@@ -31,14 +31,12 @@ jobs:
           sudo apt-get install -y bc bison build-essential ccache curl flex git \
             libelf-dev libssl-dev lld llvm python3 python3-pip unzip wget zip zstd
 
-      - name: Download Toolchain Clang (Neutron / AOSP)
+      - name: Download Toolchain Clang (Neutron Latest)
         run: |
           mkdir -p clang
           cd clang
-          wget -q https://github.com
-          tar -I zstd -xf neutron-clang-05012024.tar.zst
-          rm -f neutron-clang-05012024.tar.zst
-
+          bash <(curl -s "https://githubusercontent.com") -S
+          bash <(curl -s "https://githubusercontent.com") --patch=glibc
       - name: Cek Defconfig yang Tersedia
         id: check_config
         run: |
