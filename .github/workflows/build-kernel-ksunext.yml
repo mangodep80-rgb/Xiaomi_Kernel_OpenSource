@@ -40,8 +40,7 @@ jobs:
 
       - name: Integrasi KernelSU-Next
         run: |
-          curl -LSs "https://githubusercontent.com" | bash -s next
-
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s stable
       - name: Cek & Konfigurasi Defconfig
         id: check_config
         run: |
