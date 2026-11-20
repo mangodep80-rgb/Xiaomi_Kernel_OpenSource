@@ -35,8 +35,8 @@ jobs:
         run: |
           mkdir -p clang
           cd clang
-          bash <(curl -s "https://githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S
-          bash <(curl -s "https://githubusercontent.com/Neutron-Toolchains/antman/main/antman") --patch=glibc
+          bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S
+          bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") --patch=glibc
 
       - name: Integrasi KernelSU-Next
         run: |
