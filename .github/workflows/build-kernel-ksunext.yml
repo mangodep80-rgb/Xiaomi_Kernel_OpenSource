@@ -85,7 +85,7 @@ jobs:
 
       - name: Kemas dengan AnyKernel3
         run: |
-          git clone --depth=1 https://github.com AnyKernel3
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
           sed -i 's!block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!block=/dev/block/bootdevice/by-name/boot;!g' AnyKernel3/anykernel.sh
           cp out/arch/arm64/boot/Image AnyKernel3/ || cp out/arch/arm64/boot/Image.gz AnyKernel3/
