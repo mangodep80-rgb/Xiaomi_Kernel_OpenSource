@@ -1,0 +1,91 @@
+name: Build Kernel Kunzite
+
+on:
+  workflow_dispatch:
+    inputs:
+      defconfig:
+        description: 'Nama defconfig (kosongkan untuk deteksi otomatis)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: Compile Android Kernel
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Bersihkan Ruang Penyimpanan Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android
+          sudo apt-get clean
+          df -h
+
+      - name: Checkout Source Kernel
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Dependensi Build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex git \
+            libelf-dev libssl-dev lld llvm python3 python3-pip unzip wget zip zstd
+
+      - name: Download Toolchain Clang (Neutron / AOSP)
+        run: |
+          mkdir -p clang
+          cd clang
+          wget -q https://github.com
+          tar -I zstd -xf neutron-clang-05012024.tar.zst
+          rm -f neutron-clang-05012024.tar.zst
+
+      - name: Cek Defconfig yang Tersedia
+        id: check_config
+        run: |
+          echo "=== Daftar Defconfig di arch/arm64/configs ==="
+          ls -la arch/arm64/configs/ || true
+          ls -la arch/arm64/configs/vendor/ 2>/dev/null || true
+
+          if [ -n "${{ github.event.inputs.defconfig }}" ]; then
+            SELECTED="${{ github.event.inputs.defconfig }}"
+          elif [ -f "arch/arm64/configs/kunzite_defconfig" ]; then
+            SELECTED="kunzite_defconfig"
+          elif [ -f "arch/arm64/configs/vendor/kunzite_defconfig" ]; then
+            SELECTED="vendor/kunzite_defconfig"
+          elif [ -f "arch/arm64/configs/gki_defconfig" ]; then
+            SELECTED="gki_defconfig"
+          else
+            SELECTED="defconfig"
+          fi
+          echo "DEFCONFIG=$SELECTED" >> $GITHUB_ENV
+          echo "Menggunakan defconfig: $SELECTED"
+
+      - name: Mulai Kompilasi Kernel
+        run: |
+          export PATH="$PWD/clang/bin:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export KBUILD_BUILD_USER="Builder"
+          export KBUILD_BUILD_HOST="GitHub-Actions"
+
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
+          make -j$(nproc --all) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+      - name: Kemas Hasil Build (Image / Image.gz)
+        run: |
+          mkdir -p release
+          cp out/arch/arm64/boot/Image* release/ 2>/dev/null || true
+          ls -lh release/
+
+      - name: Upload Hasil Build ke Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-Kunzite-${{ github.run_number }}
+          path: release/
+          retention-days: 7
